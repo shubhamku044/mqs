@@ -1,0 +1,285 @@
+openapi: 3.0.0
+info:
+  title: MQS API
+  description: A simple message queue service API.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: Service Health
+    description: Operations for monitoring the overall status and health of the service.
+  - name: Topic Management
+    description: Endpoints for the lifecycle management of topics.
+  - name: Webhook Management
+    description: Endpoints for managing webhooks, which are subscribed to topics.
+  - name: Message Handling
+    description: The core functionality of the message queue for publishing messages.
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Provides health status of the service.
+      tags:
+        - Service Health
+      responses:
+        "200":
+          description: Successful health check
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uptime:
+                    type: string
+                    example: "1m2s"
+                  lastCommitHash:
+                    type: string
+                    example: "a1b2c3d"
+                  lastCommitTime:
+                    type: string
+                    format: date-time
+                  dirtyBuild:
+                    type: boolean
+                  connectedToDB:
+                    type: boolean
+  /topics:
+    post:
+      summary: Create a new topic
+      tags:
+        - Topic Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                slug:
+                  type: string
+              required:
+                - slug
+      responses:
+        "201":
+          description: Topic created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        "400":
+          description: Invalid request body or slug
+    get:
+      summary: Get a list of topics
+      tags:
+        - Topic Management
+      parameters:
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+          description: The number of items to skip before starting to collect the result set.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+          description: The numbers of items to return.
+      responses:
+        "200":
+          description: A paginated list of topics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Topic"
+        "400":
+          description: Invalid query parameters
+  /topics/{slug}:
+    delete:
+      summary: Delete a topic
+      tags:
+        - Topic Management
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+          description: The slug of the topic to delete.
+      responses:
+        "202":
+          description: Topic deletion accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        "404":
+          description: Topic not found
+  /topics/{slug}/webhooks:
+    post:
+      summary: Create a webhook for a topic
+      tags:
+        - Webhook Management
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+          description: The slug of the topic.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                  format: uri
+              required:
+                - url
+      responses:
+        "201":
+          description: Webhook created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        "400":
+          description: Invalid request
+        "404":
+          description: Topic not found
+    get:
+      summary: Get webhooks for a topic
+      tags:
+        - Webhook Management
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+          description: The slug of the topic.
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: A list of webhooks for the topic
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Webhook"
+        "400":
+          description: Invalid parameters
+  /topics/{slug}/webhooks/{webhookId}:
+    delete:
+      summary: Delete a webhook
+      tags:
+        - Webhook Management
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: webhookId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "202":
+          description: Webhook deletion accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        "404":
+          description: Webhook not found
+  /topics/{slug}/messages:
+    post:
+      summary: Publish a message to a topic
+      tags:
+        - Message Handling
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "202":
+          description: Message accepted for processing
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        "400":
+          description: Invalid JSON payload
+        "404":
+          description: Topic not found
+components:
+  schemas:
+    Topic:
+      type: object
+      properties:
+        slug:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    Webhook:
+      type: object
+      properties:
+        id:
+          type: integer
+        url:
+          type: string
+          format: uri
+        createdAt:
+          type: string
+          format: date-time
