@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 
 	"github.com/SeaRoll/mqs"
@@ -55,12 +56,34 @@ func main() {
 	}
 	defer app.Close()
 
+	var publishWg sync.WaitGroup
+
 	slog.Info("Starting MQS server", "port", cfg.port, "listenPool", cfg.listenPool)
+
 	for range cfg.listenPool {
-		go app.PublishMesssages(ctx)
+		publishWg.Add(1)
+		go func() {
+			defer publishWg.Done()
+			app.PublishMesssages(ctx)
+		}()
 	}
 
-	if err := app.RunServer(ctx, cfg.port); err != nil {
-		panic(err)
+	serverDone := make(chan error, 1)
+	go func() {
+		serverDone <- app.RunServer(ctx, cfg.port)
+	}()
+
+	select {
+	case err := <-serverDone:
+		if err != nil {
+			slog.Error("Server error", "error", err)
+		}
+	case <-ctx.Done():
+		slog.Info("Shutdown signal received, waiting for message publishers to finish...")
 	}
+
+	cancel()
+
+	publishWg.Wait()
+	slog.Info("All message publishing goroutines have stopped")
 }
