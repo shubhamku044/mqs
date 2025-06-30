@@ -56,7 +56,11 @@ func RunMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			slog.Error("failed to rollback transaction", "error", err)
+		}
+	}()
 
 	// Create migration table
 	_, err = tx.Exec(ctx, `
@@ -183,7 +187,9 @@ func handleGetOpenAPI() http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/yaml")
 		w.WriteHeader(http.StatusOK)
-		w.Write(openAPI)
+		if _, err := w.Write(openAPI); err != nil {
+			slog.Error("failed to write OpenAPI response", "error", err)
+		}
 	}
 }
 
@@ -195,7 +201,9 @@ func handleGetOpenAPIHTML() http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
-		w.Write(openAPIHTML)
+		if _, err := w.Write(openAPIHTML); err != nil {
+			slog.Error("failed to write OpenAPI HTML response", "error", err)
+		}
 	}
 }
 
@@ -389,7 +397,11 @@ func (app *App) createTopic(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to begin transaction", http.StatusInternalServerError)
 		return
 	}
-	defer tx.Rollback(r.Context())
+	defer func() {
+		if err := tx.Rollback(r.Context()); err != nil {
+			slog.Error("failed to rollback transaction", "error", err)
+		}
+	}()
 
 	// Create the topic in the database
 	_, err = tx.Exec(r.Context(), "INSERT INTO topics (slug) VALUES ($1)", req.Slug)
@@ -452,7 +464,11 @@ func (app *App) getTopics(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to begin transaction", http.StatusInternalServerError)
 		return
 	}
-	defer tx.Rollback(r.Context())
+	defer func() {
+		if err := tx.Rollback(r.Context()); err != nil {
+			slog.Error("failed to rollback transaction", "error", err)
+		}
+	}()
 
 	type queryResponse struct {
 		Slug      string    `json:"slug"`
@@ -518,7 +534,11 @@ func (app *App) deleteTopic(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to begin transaction", http.StatusInternalServerError)
 		return
 	}
-	defer tx.Rollback(r.Context())
+	defer func() {
+		if err := tx.Rollback(r.Context()); err != nil {
+			slog.Error("failed to rollback transaction", "error", err)
+		}
+	}()
 
 	// Delete the topic from the database
 	cmdTag, err := tx.Exec(r.Context(), "DELETE FROM topics WHERE slug = $1", slug)
@@ -585,7 +605,11 @@ func (app *App) createWebhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to begin transaction", http.StatusInternalServerError)
 		return
 	}
-	defer tx.Rollback(r.Context())
+	defer func() {
+		if err := tx.Rollback(r.Context()); err != nil {
+			slog.Error("failed to rollback transaction", "error", err)
+		}
+	}()
 
 	const query = "INSERT INTO webhooks (topic, url) VALUES ($1, $2)"
 	_, err = tx.Exec(r.Context(), query, slug, req.URL)
@@ -665,7 +689,11 @@ func (app *App) getWebhooksForTopic(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to begin transaction", http.StatusInternalServerError)
 		return
 	}
-	defer tx.Rollback(r.Context())
+	defer func() {
+		if err := tx.Rollback(r.Context()); err != nil {
+			slog.Error("failed to rollback transaction", "error", err)
+		}
+	}()
 
 	// This query now aggregates results into a single JSON string,
 	// matching the expectation of the PerformJSONQuery function.
@@ -749,7 +777,11 @@ func (app *App) deleteWebhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to begin transaction", http.StatusInternalServerError)
 		return
 	}
-	defer tx.Rollback(r.Context())
+	defer func() {
+		if err := tx.Rollback(r.Context()); err != nil {
+			slog.Error("failed to rollback transaction", "error", err)
+		}
+	}()
 
 	// Delete the webhook from the database, ensuring it belongs to the correct topic.
 	// This prevents deleting a webhook from another topic by just knowing its ID.
@@ -823,7 +855,11 @@ func (app *App) createMessage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to begin transaction", http.StatusInternalServerError)
 		return
 	}
-	defer tx.Rollback(r.Context())
+	defer func() {
+		if err := tx.Rollback(r.Context()); err != nil {
+			slog.Error("failed to rollback transaction", "error", err)
+		}
+	}()
 
 	// Insert the message into the database.
 	const query = "INSERT INTO messages (topic, payload) VALUES ($1, $2)"
